@@ -7,7 +7,7 @@ from scipy.spatial import distance
 from scipy.fft import fft, fftfreq, fftshift, rfft
 from scipy.optimize import brentq
 
-
+PI = torch.acos(torch.zeros(1)).item() * 2
 # Gaussian Process Tutorial:
 # https://peterroelants.github.io/posts/gaussian-process-tutorial/
 
@@ -44,10 +44,90 @@ def sinc_kernel(sig_pow, center, width):
 def sinc_func(x, sig_pow, center, width):
     return sig_pow**2 * np.sinc(width*x) * np.cos(2*np.pi*center*x) / (2*width)
 
+## FIX DEVICE
+class PeriodicTrain_Transformer(torch.utils.data.IterableDataset):
+    EPSILON = 0.000001
+    def __init__(self, min_time, num_freqs, avg_freq_amp,
+            lowpass, highpass, num_samples, cache_size):
+        self.min_time = min_time
+        self.num_freqs = num_freqs
+        self.lowpass = lowpass
+        self.highpass = highpass
+        self.freq_amp = avg_freq_amp
+        self.num_samples = num_samples
+        self.cache_size = cache_size
+
+        self.fund_freq = (self.highpass - self.lowpass) / self.num_freqs
+        self.freqs = torch.linspace(self.lowpass, 
+            self.highpass-self.fund_freq, steps=self.num_freqs)[:,None]
+        self.max_time = min_time + 1/self.fund_freq
+        self.sample_rate = self.num_samples / (self.max_time - self.min_time)
+        if self.num_samples and round(highpass * 2.2) > self.sample_rate:
+            raise ValueError('PeriodicTrain recieved too small num_samples.')
+        self.x = torch.linspace(self.min_time, 
+            self.max_time-1/self.sample_rate, self.num_samples)[None,:]
+        self.min_zc_interval = 1 / self.highpass / 12
+        self.zeros_size = int(1.85*(self.max_time-self.min_time)*self.highpass)
+        self.max_zeros = 0
+
+    def __iter__(self):
+        self.batch_rand_vals()
+        self.idx = 0
+        return self
+
+    def find_zeros(self, sig):
+        zero_idx = torch.where(torch.diff(torch.signbit(sig)))[1]
+        comp_arr = torch.roll(sig, -1)
+        zero_offset = torch.divide(sig, torch.subtract(sig,comp_arr))
+        zeros = torch.add(torch.divide(zero_offset,self.sample_rate), self.x)
+        zero_feats = torch.zeros(zero_idx.shape[0], sig.shape[1])
+        zero_feats[torch.arange(zero_idx.shape[0]),zero_idx] = 1
+        return zero_feats * zeros
+
+    def batch_rand_vals(self):
+        self.coeff = torch.rand(
+            [1, self.num_freqs, self.cache_size], dtype=torch.float32)
+        self.coeff = (
+            ((self.coeff - 0.5) * self.freq_amp) + self.freq_amp)
+        # Adds randomness to nature of generated baseline signals
+        self.amp_filter = (torch.rand(
+            (1, self.num_freqs, self.cache_size), dtype=torch.float) 
+            < 0.75)
+        self.coeff *= self.amp_filter
+
+    # Needs to check free zeros
+    def __next__(self):
+        #sig[num_samples,1]
+        if(self.idx >= self.cache_size): 
+            self.batch_rand_vals()
+            self.idx = 0
+        sig = PeriodicTrain_Transformer.cos_func(
+            self.x, self.coeff[:,:,self.idx], self.freqs)
+        zeros = self.find_zeros(sig)
+        self.max_zeros = max(self.max_zeros, zeros.shape[0])
+        pad_len = self.zeros_size - zeros.shape[0]
+        zeros_pad = torch.nn.functional.pad(zeros, (0,0,0,pad_len))
+        start = torch.zeros(sig.shape)
+        start[:,0] = sig[:,0]
+        self.idx += 1
+        return (zeros_pad, start, sig)
+
+    def cos_func(x, coeff, freqs):
+        return torch.mm(coeff*2, torch.cos(2*PI*torch.mm(freqs,x)))
+
+    def get_fund_freq(self):
+        return self.fund_freq
+
+    def get_max_time(self):
+        return self.max_time
+
+    def get_max_zeros(self):
+        return self.max_zeros
+
 
 # min/max time diff need to be 1/fund_freq
 ## FIX DEVICE
-class PeriodicTrain(torch.utils.data.IterableDataset):
+class PeriodicTrain_SDA(torch.utils.data.IterableDataset):
     ZERO_RATIO = 0.15
     EPSILON = 0.0000001
     PI = torch.acos(torch.zeros(1)).item() * 2
@@ -105,16 +185,13 @@ class PeriodicTrain(torch.utils.data.IterableDataset):
         def gen_func(x):
             flip_coeff = torch.flip(-1*coeff,[0,1])
             flip_freqs = torch.flip(-1*freqs,[0,1])
-            return (torch.mm(coeff, 
-                    torch.exp(2j*PeriodicTrain.PI*freqs*x)).item() 
-                + torch.mm(flip_coeff, 
-                    torch.exp(2j*PeriodicTrain.PI*flip_freqs*x)).item())
+            return (torch.mm(coeff, torch.exp(2j*PI*freqs*x)).item() 
+                + torch.mm(flip_coeff, torch.exp(2j*PI*flip_freqs*x)).item())
         return gen_func
 
     def cos_gen(coeff, freqs):
         def gen_func(x):
-            return torch.mm(
-               coeff*2, torch.cos(2*PeriodicTrain.PI*freqs*x)).item()
+            return torch.mm(coeff*2, torch.cos(2*PI*freqs*x)).item()
         return gen_func
 
     def real_filter(func):

@@ -29,7 +29,6 @@ NUM_EPOCH = 18
 
 passband_mult = MINI_OCTAVE_MULT
 avg_freq_amp = 16
-num_funcs = 1 
 lowpass = 4
 highpass = lowpass * passband_mult
 min_time = 0
@@ -64,7 +63,7 @@ model = SDA_Model(DEVICE, input_size=encoder_input_size,
     temporal_encoding_size=temporal_encoding_size,
     dropout_encoding_size=dropout_encoding_size,
     loss_weights=loss_weights, sparsity=sparsity, activation='PReLU')
-train = PeriodicTrain(
+train = PeriodicTrain_SDA(
     min_time, max_time, lowpass, highpass, CACHE_SIZE, 
     num_freqs, avg_freq_amp, 
     err_spectral_freqs_ratio, err_spectral_avg_amp,
@@ -97,26 +96,24 @@ for batch_idx, (X,y) in enumerate(train_loader):
         epoch = batch_idx + 1
         print("Epoch: %d - %d%%" % (epoch, epoch / NUM_EPOCH * 100))
         print('Time: %s' % timeSince(start, epoch / NUM_EPOCH))
-        print(
-            "Sparse Total: %.6f" % 
+        print("Sparse Total: %.6f" % 
             torch.sum(torch.abs(model.encode_layer(y_p,set(mode)))))
-
     elif (batch_idx+1) % 16 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
             legend=['SDA Sparse Encoding, PReLU'])
-        plt.savefig('sda_loss.png')
+        plt.savefig('results/sda_loss.png')
         plt.clf()
 
         fig = matplotlib.pyplot.gcf()
         model.show_encoding(y_p, set(mode), title='Sparse Encoding')
         fig.set_size_inches(13, 6)
-        plt.savefig('encodings')
+        plt.savefig('results/encodings.png')
         plt.clf()
         if save: model.save_model(model_path)
 
 
 plot_loss(model, legend=['SDA Sparse Encoding, PReLU'])
-plt.savefig('sda_loss.png')
+plt.savefig('results/sda_loss.png')
 plt.show()
 
 fig = matplotlib.pyplot.gcf()

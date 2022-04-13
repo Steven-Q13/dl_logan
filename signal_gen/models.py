@@ -25,7 +25,7 @@ def timeSince(since, percent):
     s = now - since
     es = s / (percent)
     rs = es - s
-    return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
+    return '%s (~ %s)' % (asMinutes(s), asMinutes(rs))
 
 # Logan's Theorem guarantees uniqueness within a constant time domain multiple,
 #  so we fit to best amplitude multiple with a linear least squares regression.
@@ -352,28 +352,30 @@ class SDA_Conv(torch.nn.Module):
 
 
 class Transformer_Model():
-    def __init__(self, device, input_size=None, target_size=None, 
+    def __init__(self, device, input_size=None, output_size=None, 
             num_layers=None, num_heads=None, dim_feedforward=None, 
-            path=None):
+            batch_first=None, path=None):
         if path:
             state = torch.load(path)
             self.input_size = state['input_size']
-            self.target_size = state['target_size']
+            self.output_size = state['output_size']
             self.num_layers = state['num_layers']
             self.num_heads = state['num_heads']
             self.dim_feedforward = state['dim_feedforward']
+            self.batch_first = state['batch_first']
             self.train_loss = state['train_loss']
         else:
             self.input_size = input_size
-            self.target_size = target_size
+            self.output_size = output_size
             self.num_layers = num_layers
             self.num_heads = num_heads
             self.dim_feedforward = (
                 dim_feedforward if dim_feedforward else 2 * self.input_size)
+            self.batch_first = batch_first
             self.train_loss = []
         self.DEVICE = device
         self.net = nn.Transformer(d_model=self.input_size, 
-            nhead=self.num_heads, 
+            nhead=self.num_heads, batch_first=self.batch_first,
             num_encoder_layers=self.num_layers,
             num_decoder_layers=self.num_layers, 
             dim_feedforward=self.dim_feedforward).to(self.DEVICE)
@@ -399,8 +401,8 @@ class Transformer_Model():
         self.scheduler.step(batch_loss)
         return batch_loss
 
-    def forward(self, input, target):
-        return self.net(input.float(), target.float())
+    def forward(self, input, start):
+        return self.net(input.float(), start.float())
 
     def get_train_loss(self):
         return self.train_loss
@@ -412,10 +414,11 @@ class Transformer_Model():
             'scheduler': self.scheduler.state_dict(),
             'device': self.DEVICE,
             'input_size': self.input_size,
-            'target_size': self.target_size,
+            'output_size': self.output_size,
             'num_layers': self.num_layers,
             'num_heads': self.num_heads,
             'dim_feedforward': self.dim_feedforward,
+            'batch_first': self.batch_first,
             'train_loss': self.train_loss}
         torch.save(state, path)
 

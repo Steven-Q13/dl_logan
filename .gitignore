@@ -3,6 +3,7 @@
 *.pyt
 # Picture results
 *.png
+venv
 
 ##
 

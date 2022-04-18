@@ -1,4 +1,6 @@
 import matplotlib
+import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -19,13 +21,22 @@ if torch.cuda.is_available():
 else:
     DEVICE = torch.device('cpu')
 
+cli_args = {
+    "location": sys.argv[1] if len(sys.argv) > 1 else 'mac',
+    "num_epochs": int(sys.argv[2]) if len(sys.argv) > 2 else 1024,
+    "batch_size": int(sys.argv[3]) if len(sys.argv) > 3 else 64,
+    "num_layers": int(sys.argv[4]) if len(sys.argv) > 4 else 1,
+    "num_heads": int(sys.argv[5]) if len(sys.argv) > 5 else 2,
+    "version": sys.argv[6] if len(sys.argv) > 5 else 'test1',
+}
+
 # Set hyperparameters
 OCTAVE_MULT = 10 ** 0.3
 MINI_OCTAVE_MULT = 1.3
 CACHE_SIZE = 10000
-BATCH_SIZE = 64
+BATCH_SIZE = cli_args['batch_size']
 REDUCE_LR = 4
-NUM_EPOCH = 32
+NUM_EPOCH = cli_args['num_epochs']
 
 passband_mult = MINI_OCTAVE_MULT
 avg_freq_amp = 16
@@ -34,14 +45,18 @@ highpass = lowpass * passband_mult
 min_time = 0
 num_freqs = 100
 num_samples = 1024
-num_layers = 1
-num_heads = 1
-attention_size = 256
+num_layers = cli_args['num_layers']
+num_heads = cli_args['num_heads']
 
 save = True
-version = 'test1'
-curr_path = '/Users/steven-q13/College/Research/PERL/logan/dl_logan/signal_gen'
-model_path = curr_path + '/models/transformer_V' + version + '.pyt'
+name = 'transformer_debug'
+version = cli_args['version']
+if cli_args['location'] == 'mac':
+    curr_path = 
+        '/Users/steven-q13/College/Research/PERL/logan/dl_logan/signal_gen'
+else:
+    curr_path = '/vulcanscratch/squeen0/dl_logan'
+model_path = curr_path + '/models/' + name + '_V' + version + '.pyt'
 mean_func_loss = [0] * NUM_EPOCH
 
 # Setup data loaders
@@ -83,13 +98,13 @@ for batch_idx, (X,gen,y) in enumerate(train_loader):
     elif (batch_idx+1) % 16 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
             legend=['Transformer Sequence Prediction'])
-        plt.savefig('results/transformer_loss.png')
+        plt.savefig('results/' + name + '.png')
         plt.clf()
         if save: model.save_model(model_path)
 
 
 plot_loss(model, legend=['Transformer Sequence Prediction'])
-plt.savefig('results/transformer_loss.png')
+plt.savefig('results/' + name + '_loss.png')
 plt.show()
 if save: model.save_model(model_path)
 

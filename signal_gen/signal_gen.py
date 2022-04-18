@@ -110,7 +110,7 @@ class PeriodicTrain_Transformer(torch.utils.data.IterableDataset):
         start = torch.zeros(sig.shape)
         start[:,0] = sig[:,0]
         self.idx += 1
-        return (zeros_pad, start, sig)
+        return (zeros_pad.detach(), start.detach(), sig.detach())
 
     def cos_func(x, coeff, freqs):
         return torch.mm(coeff*2, torch.cos(2*PI*torch.mm(freqs,x)))

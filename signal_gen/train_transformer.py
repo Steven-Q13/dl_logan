@@ -52,8 +52,7 @@ save = True
 name = 'transformer_debug'
 version = cli_args['version']
 if cli_args['location'] == 'mac':
-    curr_path = 
-        '/Users/steven-q13/College/Research/PERL/logan/dl_logan/signal_gen'
+    curr_path = '/Users/steven-q13/College/Research/PERL/logan/dl_logan/signal_gen'
 else:
     curr_path = '/vulcanscratch/squeen0/dl_logan'
 model_path = curr_path + '/models/' + name + '_V' + version + '.pyt'
@@ -98,13 +97,13 @@ for batch_idx, (X,gen,y) in enumerate(train_loader):
     elif (batch_idx+1) % 16 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
             legend=['Transformer Sequence Prediction'])
-        plt.savefig('results/' + name + '.png')
+        plt.savefig(curr_path + '/results/' + name + '_loss.png')
         plt.clf()
         if save: model.save_model(model_path)
 
 
 plot_loss(model, legend=['Transformer Sequence Prediction'])
-plt.savefig('results/' + name + '_loss.png')
-plt.show()
+plt.savefig(curr_path + '/results/' + name + '_loss.png')
+if cli_args['location'] == 'mac': plt.show()
 if save: model.save_model(model_path)
 

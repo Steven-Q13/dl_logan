@@ -56,6 +56,7 @@ if cli_args['location'] == 'mac':
 else:
     curr_path = '/vulcanscratch/squeen0/dl_logan'
 model_path = curr_path + '/models/' + name + '_V' + version + '.pyt'
+plot_path = curr_path + '/results/' + name + '_V' + version + '.png'
 mean_func_loss = [0] * NUM_EPOCH
 
 # Setup data loaders
@@ -67,6 +68,16 @@ max_time = train.get_max_time()
 model = Transformer_Model(device=DEVICE,input_size=num_samples, 
     output_size=num_samples, num_layers=num_layers, 
     num_heads=num_heads, batch_first=True)
+
+print('Number of Epochs: %d' % NUM_EPOCH)
+print('Batch Size: %d' % BATCH_SIZE)
+print('Number of Layers: %d' % num_layers)
+print('Number of Heads: %d' % num_heads)
+print('Lowpass: %d' % lowpass)
+print('Number of Frequencies: %d' % num_freqs)
+print('Frequency Amplitude: %d' % avg_freq_amp)
+print('Version: ' + version)
+print('Number of Parameters: %d' % model.count_params())
 
 start = time.time()
 # Infinite dataset so can view as mini-batch, or each batch is individual epoch

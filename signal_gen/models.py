@@ -422,4 +422,7 @@ class Transformer_Model():
             'train_loss': self.train_loss}
         torch.save(state, path)
 
+    def count_params(self):
+        return sum(p.numel() for p in self.net.parameters() if p.requires_grad)
+
 

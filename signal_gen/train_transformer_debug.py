@@ -68,6 +68,16 @@ model = Transformer_Model(device=DEVICE,input_size=num_samples,
     output_size=num_samples, num_layers=num_layers, 
     num_heads=num_heads, batch_first=True)
 
+print('Number of Epochs: %d' % NUM_EPOCH)
+print('Batch Size: %d' % BATCH_SIZE)
+print('Number of Layers: %d' % num_layers)
+print('Number of Heads: %d' % num_heads)
+print('Lowpass: %d' % lowpass)
+print('Number of Frequencies: %d' % num_freqs)
+print('Frequency Amplitude: %d' % avg_freq_amp)
+print('Version: ' + version)
+print('Number of Parameters: %d' % model.count_params())
+
 start = time.time()
 # Infinite dataset so can view as mini-batch, or each batch is individual epoch
 for batch_idx, (X,gen,y) in enumerate(train_loader):

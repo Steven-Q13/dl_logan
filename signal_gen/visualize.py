@@ -189,3 +189,4 @@ def plot_loss(model, model2=None, model3=None, skip_beg=0, legend=['Loss']):
     plt.ylabel('MSE Loss')
     plt.title('Training/Validation Loss')
     plt.legend(legend)
+

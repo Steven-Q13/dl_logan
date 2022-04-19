@@ -380,9 +380,9 @@ class Transformer_Model():
             num_decoder_layers=self.num_layers, 
             dim_feedforward=self.dim_feedforward).to(self.DEVICE)
         param_list = [{'params' : self.net.parameters()}]
-        self.optimizer = torch.optim.Adam(param_list, lr=0.001)
+        self.optimizer = torch.optim.Adam(param_list, lr=0.01)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, factor=0.5, min_lr=0.00001)
+            self.optimizer, factor=0.5, min_lr=0.00005)
         self.loss_fn = torch.nn.MSELoss()
         if path:
             self.net.load_state_dict(state['net'])
@@ -394,7 +394,7 @@ class Transformer_Model():
 
     def backward(self, y, y_p):
         batch_loss = self.calc_loss(y, y_p)
-        self.train_loss.append(batch_loss.detach().numpy())
+        self.train_loss.append(batch_loss.detach().cpu().numpy())
         self.optimizer.zero_grad()
         batch_loss.backward()
         self.optimizer.step()

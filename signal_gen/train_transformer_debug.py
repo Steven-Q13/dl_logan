@@ -56,6 +56,7 @@ if cli_args['location'] == 'mac':
 else:
     curr_path = '/vulcanscratch/squeen0/dl_logan'
 model_path = curr_path + '/models/' + name + '_V' + version + '.pyt'
+plot_path = curr_path + '/results/' + name + '_loss_V' + version + '.png'
 mean_func_loss = [0] * NUM_EPOCH
 
 # Setup data loaders
@@ -63,7 +64,6 @@ train = PeriodicTrain_Transformer(min_time, num_freqs, avg_freq_amp,
     lowpass, highpass, num_samples, CACHE_SIZE)
 train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE)
 max_time = train.get_max_time()
-
 model = Transformer_Model(device=DEVICE,input_size=num_samples, 
     output_size=num_samples, num_layers=num_layers, 
     num_heads=num_heads, batch_first=True)
@@ -77,7 +77,6 @@ print('Number of Frequencies: %d' % num_freqs)
 print('Frequency Amplitude: %d' % avg_freq_amp)
 print('Version: ' + version)
 print('Number of Parameters: %d' % model.count_params())
-
 start = time.time()
 # Infinite dataset so can view as mini-batch, or each batch is individual epoch
 for batch_idx, (X,gen,y) in enumerate(train_loader):
@@ -95,7 +94,6 @@ for batch_idx in range(NUM_EPOCH):
     gen = gen.detach()
     y_p = model.forward(X,gen)
     model.backward(y, y_p)
-
     if batch_idx == NUM_EPOCH - 1:
         print("\nMSE Loss: %.6f" % model.calc_loss(y,y_p))
         print(torch.sum(torch.square(y)).shape)
@@ -116,12 +114,12 @@ for batch_idx in range(NUM_EPOCH):
     elif (batch_idx+1) % 16 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
             legend=['Transformer Sequence Prediction'])
-        plt.savefig(curr_path + '/results/' + name + '.png')
+        plt.savefig(plot_path)
         plt.clf()
         if save: model.save_model(model_path)
 
 plot_loss(model, legend=['Transformer Sequence Prediction'])
-plt.savefig(curr_path + '/results/' + name + '_loss.png')
+plt.savefig(plot_path)
 if cli_args['location'] == 'mac': plt.show()
 if save: model.save_model(model_path)
 

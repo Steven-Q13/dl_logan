@@ -356,7 +356,7 @@ class Transformer_Model():
             num_layers=None, num_heads=None, dim_feedforward=None, 
             batch_first=None, path=None):
         if path:
-            state = torch.load(path)
+            state = torch.load(path, map_location=device)
             self.input_size = state['input_size']
             self.output_size = state['output_size']
             self.num_layers = state['num_layers']

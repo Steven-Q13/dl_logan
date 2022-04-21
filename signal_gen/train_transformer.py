@@ -69,6 +69,7 @@ model = Transformer_Model(device=DEVICE,input_size=num_samples,
     output_size=num_samples, num_layers=num_layers, 
     num_heads=num_heads, batch_first=True)
 
+print("Transformer")
 print('Number of Epochs: %d' % NUM_EPOCH)
 print('Batch Size: %d' % BATCH_SIZE)
 print('Number of Layers: %d' % num_layers)

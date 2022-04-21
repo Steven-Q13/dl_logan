@@ -356,7 +356,7 @@ class Transformer_Model():
             num_layers=None, num_heads=None, dim_feedforward=None, 
             batch_first=None, path=None):
         if path:
-            state = torch.load(path)
+            state = torch.load(path, map_location=device)
             self.input_size = state['input_size']
             self.output_size = state['output_size']
             self.num_layers = state['num_layers']
@@ -424,5 +424,170 @@ class Transformer_Model():
 
     def count_params(self):
         return sum(p.numel() for p in self.net.parameters() if p.requires_grad)
+
+
+# Denoising autoencoder, denoises in terms of spectral leakage, 
+#  zero approximation, and ?free zeros?
+# Check is this a STACKED autoencoder
+class NBeats_Block(torch.nn.Module):
+    def __init__(self, input_size, output_size, fnn_size, basis_size, 
+            basis, min_freq=None, time_len=None):
+        super(NBeats_Block, self).__init__()
+        self.input_size = input_size
+        self.input_size = output_size
+        self.fnn_size = fnn_size
+        self.basis = basis
+        self.activation = torch.nn.ReLU()
+
+        self.fnn = torch.nn.Sequential(
+            torch.nn.Linear(input_size, fnn_size),
+            self.activation,
+            torch.nn.Linear(fnn_size, fnn_size),
+            self.activation,
+            torch.nn.Linear(fnn_size, fnn_size),
+            self.activation,
+            torch.nn.Linear(fnn_size, fnn_size),
+            self.activation)
+        self.input_proj = torch.nn.Linear(fnn_size, basis_size)
+        self.output_proj = torch.nn.Linear(fnn_size, basis_size)
+        if self.basis == 'generic':
+            self.input_basis = torch.nn.Linear(basis_size, input_size)
+            self.output_basis = torch.nn.Linear(basis_size, output_size)
+        elif self.basis == 'fourier':
+            max_freq = min_freq * 2.6
+            freqs = torch.linspace(min_freq, max_freq, basis_size)[None,:]
+            input_times = torch.linspace(0, time_len, input_size)[:,None]
+            output_times = torch.linspace(0, time_len, output_size)[:,None]
+            PI = torch.acos(torch.zeros(1)).item() * 2
+            self.input_cos_mat = torch.cos(
+                2*PIccorch.mm(input_times, freqs)).detach()
+            self.output_cos_mat = torch.cos(
+                2*PIccorch.mm(output_times, freqs)).detach()
+            self.input_sin_mat = torch.sin(
+                2*PIccorch.mm(input_times, freqs)).detach()
+            self.output_sin_mat = torch.sin(
+                2*PIccorch.mm(output_times, freqs)).detach()
+        else:
+            raise ValueError('NBeats_Block recieved invalid basis name.')
+
+    def forward(self, x):
+        x = self.fnn(x)
+        y = self.output_proj(x)
+        x = self.input_proj(x)
+        if self.basis == 'generic':
+            y = self.output_basis(y)
+            x = self.input_basis(x)
+        elif basis == 'fourier':
+            y = self.output_basis(y)
+            x = self.input_basis(x)
+            y_cos = torch.bmm(self.output_cos_mat.repeat(y.shape[0],1,1),
+                torch.transpose(y,1,2))
+            y_sin = torch.bmm(self.output_sin_mat.repeat(y.shape[0],1,1),
+                torch.transpose(y,1,2))
+            y = torch.transpose(y_sin + y_cos, 1, 2)
+            x_cos = torch.bmm(self.output_cos_mat.repeat(x.shape[0],1,1),
+                torch.transpose(x,1,2))
+            x_sin = torch.bmm(self.output_sin_mat.repeat(x.shape[0],1,1),
+                torch.transpose(x,1,2))
+            x = torch.transpose(x_sin + x_cos, 1, 2)
+        return x, y
+
+
+class NBeats(torch.nn.Module):
+    def __init__(
+            self, input_size, output_size, fnn_size, basis_size, block_types):
+        super(NBeats, self).__init__()
+        self.blocks = []
+        for basis in block_types:
+            self.blocks.append(NBeats_Block(
+                input_size, output_size, fnn_size, basis_size, basis))
+
+    def forward(self, x):
+        x_prev = x
+        x, y_total = self.blocks[0](x)
+        for block in self.blocks[1:]:
+            x = x_prev - x
+            x_prev = x
+            x, y = block(x)
+            y_total += y
+        return y_total
+
+    def count_params(self):
+        count = 0
+        for block in self.blocks:
+            count += sum(
+                p.numel() for p in block.parameters() if p.requires_grad)
+        return count
+
+            
+
+class NBeats_Model():
+    def __init__(self, device, input_size=None, output_size=None, 
+            fnn_size=None, basis_size=None, block_types=None, path=None):
+        if path:
+            state = torch.load(path, map_location=device)
+            self.input_size = state['input_size']
+            self.output_size = state['output_size']
+            self.fnn_size = state['fnn_size']
+            self.basis_size = state['basis_size']
+            self.block_types = state['block_types']
+            self.train_loss = state['train_loss']
+        else:
+            self.input_size = input_size
+            self.output_size = output_size
+            self.fnn_size = fnn_size
+            self.basis_size = basis_size
+            self.block_types = block_types
+            self.train_loss = []
+        self.DEVICE = device
+        self.net = NBeats(self.input_size, self.output_size, self.fnn_size, 
+            self.basis_size, self.block_types).to(self.DEVICE)
+        param_list = [{'params' : self.net.parameters()}]
+        self.optimizer = torch.optim.Adam(param_list, lr=0.001)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, factor=0.5, min_lr=0.00005)
+        self.loss_fn = torch.nn.MSELoss()
+        self.loss_fn = torch.nn.L1Loss()
+        if path:
+            self.net.load_state_dict(state['net'])
+            self.optimizer.load_state_dict(state['optimizer'])
+            self.scheduler.load_state_dict(state['scheduler'])
+
+    def calc_loss(self, y, y_p):
+        return self.loss_fn(y_p, y)
+
+    def backward(self, y, y_p):
+        batch_loss = self.calc_loss(y, y_p)
+        self.train_loss.append(batch_loss.detach().cpu().numpy())
+        self.optimizer.zero_grad()
+        batch_loss.backward()
+        self.optimizer.step()
+        self.scheduler.step(batch_loss)
+        return batch_loss
+
+    def forward(self, input):
+        return self.net(input.float())
+
+    def get_train_loss(self):
+        return self.train_loss
+
+    def save_model(self, path):
+        state = {
+            'net': self.net.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'scheduler': self.scheduler.state_dict(),
+            'device': self.DEVICE,
+            'input_size': self.input_size,
+            'output_size': self.output_size,
+            'fnn_size': self.fnn_size,
+            'basis_size': self.basis_size,
+            'block_types':self.block_types,
+            'train_loss': self.train_loss}
+        torch.save(state, path)
+
+    def count_params(self):
+        return self.net.count_params()
+
+
 
 

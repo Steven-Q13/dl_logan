@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 import torch
-import pandas as pd
 from scipy.spatial import distance
 from scipy.fft import fft, fftfreq, fftshift, rfft
 from scipy.optimize import brentq

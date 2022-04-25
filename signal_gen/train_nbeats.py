@@ -12,6 +12,7 @@ from signal_gen import *
 from models import *
 from visualize import *
 
+# Run: python3 signal_gen/train_nbeats.py mac 400 64 900 800 test1
 np.random.seed(13)
 np.set_printoptions(threshold=np.inf)
 torch.set_printoptions(threshold=1000000)
@@ -47,7 +48,7 @@ num_freqs = 100
 num_samples = 1024
 fnn_size = cli_args['fnn_size']
 basis_size = cli_args['basis_size']
-block_types = ['generic', 'generic', 'generic', 'generic']
+block_types = ['fourier']
 
 save = True
 name = 'nbeats'
@@ -58,6 +59,7 @@ else:
     curr_path = '/vulcanscratch/squeen0/dl_logan'
 model_path = curr_path + '/models/' + name + '_V' + version + '.pyt'
 plot_path = curr_path + '/results/' + name + '_V' + version + '.png'
+seq_plot_path = curr_path + '/results/' + name + '_seq_V' + version + '.png'
 
 # Setup data loaders
 train = PeriodicTrain_NBeats(min_time, num_freqs, avg_freq_amp, 
@@ -66,7 +68,8 @@ train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE)
 max_time = train.get_max_time()
 model = NBeats_Model(device=DEVICE, input_size=num_samples, 
     output_size=num_samples, fnn_size=fnn_size, 
-    basis_size=basis_size, block_types=block_types)
+    basis_size=basis_size, block_types=block_types,
+    min_freq=lowpass, time_len=max_time)
 
 print("NBeats")
 print('Number of Epochs: %d' % NUM_EPOCH)
@@ -83,7 +86,6 @@ print('Number of Parameters: %d' % model.count_params())
 start = time.time()
 # Infinite dataset so can view as mini-batch, or each batch is individual epoch
 for batch_idx, (X,y) in enumerate(train_loader):
-    print(X.shape)
     X = X.to(DEVICE, non_blocking=True)
     y = y.to(DEVICE, non_blocking=True)
     y_p = model.forward(X)
@@ -91,10 +93,9 @@ for batch_idx, (X,y) in enumerate(train_loader):
 
     if batch_idx == NUM_EPOCH - 1:
         print("\nMSE Loss: %.6f" % model.calc_loss(y,y_p))
-        print(torch.sum(torch.square(y)).shape)
         avg_dumb_mse_loss = (
             torch.sum(torch.square(y)).item()/(y.shape[1]*BATCH_SIZE))
-        print("MSE Loss from y_p=0: %.6f" % avg_dumb_mse_loss)
+        #print("MSE Loss from y_p=0: %.6f" % avg_dumb_mse_loss)
         #print(y_p[0,0,:])
         #print(y[0,0,:])
         #show = torch.cat((X[0:1,:],y[0:1,:],y_p[0:1,:]),0)
@@ -106,16 +107,22 @@ for batch_idx, (X,y) in enumerate(train_loader):
         print("Epoch: %d - %d%%" % (epoch, epoch / NUM_EPOCH * 100))
         print('Time: %s' % timeSince(start, epoch / NUM_EPOCH))
         print("Error Last: %.6f" % model.get_train_loss()[-1])
-    elif (batch_idx+1) % 100 == 0:
+    elif (batch_idx+1) % 10 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
             legend=['Transformer Sequence Prediction'])
         plt.savefig(curr_path + '/results/' + name + '_loss.png')
+        plt.clf()
+        plot_seq(y, y_p)
+        plt.savefig(seq_plot_path)
         plt.clf()
         if save: model.save_model(model_path)
 
 
 plot_loss(model, legend=['NBeats Sequence Prediction'])
 plt.savefig(curr_path + '/results/' + name + '_loss.png')
+plt.clf()
+plot_seq(y, y_p)
+plt.savefig(seq_plot_path)
 if cli_args['location'] == 'mac': plt.show()
 if save: model.save_model(model_path)
 

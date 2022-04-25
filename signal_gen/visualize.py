@@ -190,3 +190,12 @@ def plot_loss(model, model2=None, model3=None, skip_beg=0, legend=['Loss']):
     plt.title('Training/Validation Loss')
     plt.legend(legend)
 
+def plot_seq(y, y_p):
+    x = np.linspace(1,y[0,0,:].shape[0],num=y[0,0,:].shape[0])
+    plt.plot(x, y[0,0,:].detach().numpy())
+    plt.plot(x, y_p[0,0,:].detach().numpy())
+    plt.xlabel('Time')
+    plt.ylabel('Magnitude')
+    plt.title('Prediction v. Target Signal')
+    plt.legend(['Target', 'Prediction'])
+

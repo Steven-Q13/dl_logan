@@ -431,7 +431,7 @@ class Transformer_Model():
 # Check is this a STACKED autoencoder
 class NBeats_Block(torch.nn.Module):
     def __init__(self, input_size, output_size, fnn_size, basis_size, 
-            basis, min_freq=None, time_len=None):
+            basis, min_freq, time_len):
         super(NBeats_Block, self).__init__()
         self.input_size = input_size
         self.input_size = output_size
@@ -460,13 +460,13 @@ class NBeats_Block(torch.nn.Module):
             output_times = torch.linspace(0, time_len, output_size)[:,None]
             PI = torch.acos(torch.zeros(1)).item() * 2
             self.input_cos_mat = torch.cos(
-                2*PIccorch.mm(input_times, freqs)).detach()
+                2*PI*torch.mm(input_times, freqs)).detach()
             self.output_cos_mat = torch.cos(
-                2*PIccorch.mm(output_times, freqs)).detach()
+                2*PI*torch.mm(output_times, freqs)).detach()
             self.input_sin_mat = torch.sin(
-                2*PIccorch.mm(input_times, freqs)).detach()
+                2*PI*torch.mm(input_times, freqs)).detach()
             self.output_sin_mat = torch.sin(
-                2*PIccorch.mm(output_times, freqs)).detach()
+                2*PI*torch.mm(output_times, freqs)).detach()
         else:
             raise ValueError('NBeats_Block recieved invalid basis name.')
 
@@ -477,9 +477,7 @@ class NBeats_Block(torch.nn.Module):
         if self.basis == 'generic':
             y = self.output_basis(y)
             x = self.input_basis(x)
-        elif basis == 'fourier':
-            y = self.output_basis(y)
-            x = self.input_basis(x)
+        elif self.basis == 'fourier':
             y_cos = torch.bmm(self.output_cos_mat.repeat(y.shape[0],1,1),
                 torch.transpose(y,1,2))
             y_sin = torch.bmm(self.output_sin_mat.repeat(y.shape[0],1,1),
@@ -495,12 +493,13 @@ class NBeats_Block(torch.nn.Module):
 
 class NBeats(torch.nn.Module):
     def __init__(
-            self, input_size, output_size, fnn_size, basis_size, block_types):
+            self, input_size, output_size, fnn_size, basis_size, 
+            block_types, min_freq, time_len):
         super(NBeats, self).__init__()
         self.blocks = []
         for basis in block_types:
-            self.blocks.append(NBeats_Block(
-                input_size, output_size, fnn_size, basis_size, basis))
+            self.blocks.append(NBeats_Block(input_size, output_size, fnn_size, 
+                basis_size, basis, min_freq, time_len))
 
     def forward(self, x):
         x_prev = x
@@ -523,7 +522,8 @@ class NBeats(torch.nn.Module):
 
 class NBeats_Model():
     def __init__(self, device, input_size=None, output_size=None, 
-            fnn_size=None, basis_size=None, block_types=None, path=None):
+            fnn_size=None, basis_size=None, block_types=None, 
+            min_freq=None, time_len=None, path=None):
         if path:
             state = torch.load(path, map_location=device)
             self.input_size = state['input_size']
@@ -531,6 +531,8 @@ class NBeats_Model():
             self.fnn_size = state['fnn_size']
             self.basis_size = state['basis_size']
             self.block_types = state['block_types']
+            self.min_freq = state['min_freq']
+            self.time_len = state['time_len']
             self.train_loss = state['train_loss']
         else:
             self.input_size = input_size
@@ -538,16 +540,19 @@ class NBeats_Model():
             self.fnn_size = fnn_size
             self.basis_size = basis_size
             self.block_types = block_types
+            self.min_freq = min_freq
+            self.time_len = time_len
             self.train_loss = []
         self.DEVICE = device
-        self.net = NBeats(self.input_size, self.output_size, self.fnn_size, 
-            self.basis_size, self.block_types).to(self.DEVICE)
+        self.net = NBeats(self.input_size, self.output_size, 
+            self.fnn_size, self.basis_size, self.block_types, 
+            self.min_freq, self.time_len).to(self.DEVICE)
         param_list = [{'params' : self.net.parameters()}]
         self.optimizer = torch.optim.Adam(param_list, lr=0.001)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, factor=0.5, min_lr=0.00005)
         self.loss_fn = torch.nn.MSELoss()
-        self.loss_fn = torch.nn.L1Loss()
+        #self.loss_fn = torch.nn.L1Loss()
         if path:
             self.net.load_state_dict(state['net'])
             self.optimizer.load_state_dict(state['optimizer'])
@@ -582,6 +587,8 @@ class NBeats_Model():
             'fnn_size': self.fnn_size,
             'basis_size': self.basis_size,
             'block_types':self.block_types,
+            'min_freq':self.min_freq,
+            'time_len':self.time_len,
             'train_loss': self.train_loss}
         torch.save(state, path)
 

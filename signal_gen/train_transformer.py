@@ -12,6 +12,7 @@ from signal_gen import *
 from models import *
 from visualize import *
 
+# Run: python3 signal_gen/train_transformer.py mac 16 4 1 1 test1
 np.random.seed(13)
 np.set_printoptions(threshold=np.inf)
 torch.set_printoptions(threshold=1000000)
@@ -49,7 +50,7 @@ num_layers = cli_args['num_layers']
 num_heads = cli_args['num_heads']
 
 save = True
-name = 'transformer_debug'
+name = 'transformer'
 version = cli_args['version']
 if cli_args['location'] == 'mac':
     curr_path = '/Users/steven-q13/College/Research/PERL/logan/dl_logan/signal_gen'
@@ -57,6 +58,8 @@ else:
     curr_path = '/vulcanscratch/squeen0/dl_logan'
 model_path = curr_path + '/models/' + name + '_V' + version + '.pyt'
 plot_path = curr_path + '/results/' + name + '_loss_V' + version + '.png'
+seq_plot_path = curr_path + '/results/' + name + '_seq_V' + version + '.png'
+
 mean_func_loss = [0] * NUM_EPOCH
 
 # Setup model
@@ -81,6 +84,7 @@ print('Number of Parameters: %d' % model.count_params())
 start = time.time()
 # Infinite dataset so can view as mini-batch, or each batch is individual epoch
 for batch_idx, (X,gen,y) in enumerate(train_loader):
+    print(batch_idx)
     X = X.to(DEVICE, non_blocking=True)
     gen = gen.to(DEVICE, non_blocking=True)
     y = y.to(DEVICE, non_blocking=True)
@@ -88,12 +92,11 @@ for batch_idx, (X,gen,y) in enumerate(train_loader):
     model.backward(y, y_p)
     if batch_idx == NUM_EPOCH - 1:
         print("\nMSE Loss: %.6f" % model.calc_loss(y,y_p))
-        print(torch.sum(torch.square(y)).shape)
         avg_dumb_mse_loss = (
             torch.sum(torch.square(y)).item()/(y.shape[1]*BATCH_SIZE))
-        print("MSE Loss from y_p=0: %.6f" % avg_dumb_mse_loss)
-        print(y_p[0,0,:])
-        print(y[0,0,:])
+        #print("MSE Loss from y_p=0: %.6f" % avg_dumb_mse_loss)
+        #print(y_p[0,0,:])
+        #print(y[0,0,:])
         #show = torch.cat((X[0:1,:],y[0:1,:],y_p[0:1,:]),0)
         #print(torch.transpose(show,0,1))
         break
@@ -103,15 +106,22 @@ for batch_idx, (X,gen,y) in enumerate(train_loader):
         print("Epoch: %d - %d%%" % (epoch, epoch / NUM_EPOCH * 100))
         print('Time: %s' % timeSince(start, epoch / NUM_EPOCH))
         print("Error Last: %.6f" % model.get_train_loss()[-1])
-    elif (batch_idx+1) % 16 == 0:
+    elif (batch_idx+1) % 4 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
-            legend=['Transformer Sequence Prediction'])
+            legend=['Transformer Sequence Prediction Loss'])
         plt.savefig(plot_path)
+        plt.clf()
+        plot_seq(y, y_p)
+        plt.savefig(seq_plot_path)
         plt.clf()
         if save: model.save_model(model_path)
 
-plot_loss(model, legend=['Transformer Sequence Prediction'])
+plot_loss(model, legend=['Transformer Sequence Prediction Loss'])
 plt.savefig(plot_path)
+plt.clf()
+plot_seq(y, y_p)
+plt.savefig(seq_plot_path)
 if cli_args['location'] == 'mac': plt.show()
 if save: model.save_model(model_path)
+
 

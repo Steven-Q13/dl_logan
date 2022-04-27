@@ -469,6 +469,7 @@ class NBeats_Block(torch.nn.Module):
                 2*PI*torch.mm(output_times, freqs)).detach()
         else:
             raise ValueError('NBeats_Block recieved invalid basis name.')
+        self.temp = torch.nn.Parameter(torch.empty(0))
 
     def forward(self, x):
         x = self.fnn(x)
@@ -478,17 +479,26 @@ class NBeats_Block(torch.nn.Module):
             y = self.output_basis(y)
             x = self.input_basis(x)
         elif self.basis == 'fourier':
+            self.output_cos_mat.repeat(y.shape[0],1,1)
+            torch.transpose(y,1,2)
             y_cos = torch.bmm(self.output_cos_mat.repeat(y.shape[0],1,1),
                 torch.transpose(y,1,2))
             y_sin = torch.bmm(self.output_sin_mat.repeat(y.shape[0],1,1),
                 torch.transpose(y,1,2))
             y = torch.transpose(y_sin + y_cos, 1, 2)
-            x_cos = torch.bmm(self.output_cos_mat.repeat(x.shape[0],1,1),
+            x_cos = torch.bmm(self.input_cos_mat.repeat(x.shape[0],1,1),
                 torch.transpose(x,1,2))
-            x_sin = torch.bmm(self.output_sin_mat.repeat(x.shape[0],1,1),
+            x_sin = torch.bmm(self.input_sin_mat.repeat(x.shape[0],1,1),
                 torch.transpose(x,1,2))
             x = torch.transpose(x_sin + x_cos, 1, 2)
         return x, y
+
+    def move(self, device):
+        if self.basis == 'fourier':
+            self.input_cos_mat = self.input_cos_mat.to(device)
+            self.output_cos_mat = self.output_cos_mat.to(device)
+            self.input_sin_mat = self.input_sin_mat.to(device)
+            self.output_sin_mat = self.output_sin_mat.to(device)
 
 
 class NBeats(torch.nn.Module):
@@ -497,7 +507,8 @@ class NBeats(torch.nn.Module):
             block_types, min_freq, time_len):
         super(NBeats, self).__init__()
         self.blocks = []
-        for basis in block_types:
+        self.block_types = block_types
+        for basis in self.block_types:
             self.blocks.append(NBeats_Block(input_size, output_size, fnn_size, 
                 basis_size, basis, min_freq, time_len))
 
@@ -518,6 +529,10 @@ class NBeats(torch.nn.Module):
                 p.numel() for p in block.parameters() if p.requires_grad)
         return count
 
+    def move(self, device):
+        for i in range(len(self.blocks)):
+            self.blocks[i] = self.blocks[i].to(device)
+            self.blocks[i].move(device)
             
 
 class NBeats_Model():
@@ -547,6 +562,7 @@ class NBeats_Model():
         self.net = NBeats(self.input_size, self.output_size, 
             self.fnn_size, self.basis_size, self.block_types, 
             self.min_freq, self.time_len).to(self.DEVICE)
+        self.net.move(self.DEVICE)
         param_list = [{'params' : self.net.parameters()}]
         self.optimizer = torch.optim.Adam(param_list, lr=0.001)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(

@@ -84,7 +84,6 @@ print('Number of Parameters: %d' % model.count_params())
 start = time.time()
 # Infinite dataset so can view as mini-batch, or each batch is individual epoch
 for batch_idx, (X,gen,y) in enumerate(train_loader):
-    print(batch_idx)
     X = X.to(DEVICE, non_blocking=True)
     gen = gen.to(DEVICE, non_blocking=True)
     y = y.to(DEVICE, non_blocking=True)

@@ -99,13 +99,13 @@ for batch_idx, (X,gen,y) in enumerate(train_loader):
         #show = torch.cat((X[0:1,:],y[0:1,:],y_p[0:1,:]),0)
         #print(torch.transpose(show,0,1))
         break
-    elif (batch_idx+1) % 25 == 0:
+    elif (batch_idx+1) % 100== 0:
         #print('Epoch: ' + str(batch_idx+1))
         epoch = batch_idx + 1
         print("Epoch: %d - %d%%" % (epoch, epoch / NUM_EPOCH * 100))
         print('Time: %s' % timeSince(start, epoch / NUM_EPOCH))
         print("Error Last: %.6f" % model.get_train_loss()[-1])
-    elif (batch_idx+1) % 4 == 0:
+    elif (batch_idx+1) % 100 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
             legend=['Transformer Sequence Prediction Loss'])
         plt.savefig(plot_path)

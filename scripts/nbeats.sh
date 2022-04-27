@@ -12,5 +12,5 @@
 # Check execution with: squeue -u squeen0
 module add Python3/3.8.2
 module add cuda
-srun bash -c "source /cfarhomes/squeen0/dl_logan/venv/bin/activate && python3 /cfarhomes/squeen0/dl_logan/signal_gen/train_transformer.py vulcan 80000 16 5 4 test1"
+srun bash -c "source /cfarhomes/squeen0/dl_logan/venv/bin/activate && python3 /cfarhomes/squeen0/dl_logan/signal_gen/train_nbeats.py vulcan 400000 256 800 200 test1"
 #Args: Location, num_epochs, batch_size, num_layers, num_heads, version

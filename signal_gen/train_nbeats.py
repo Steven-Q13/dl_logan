@@ -48,7 +48,7 @@ num_freqs = 100
 num_samples = 1024
 fnn_size = cli_args['fnn_size']
 basis_size = cli_args['basis_size']
-block_types = ['fourier']
+block_types = ['generic', 'generic', 'generic', 'fourier', 'fourier']
 
 save = True
 name = 'nbeats'
@@ -107,7 +107,7 @@ for batch_idx, (X,y) in enumerate(train_loader):
         print("Epoch: %d - %d%%" % (epoch, epoch / NUM_EPOCH * 100))
         print('Time: %s' % timeSince(start, epoch / NUM_EPOCH))
         print("Error Last: %.6f" % model.get_train_loss()[-1])
-    elif (batch_idx+1) % 10 == 0:
+    elif (batch_idx+1) % 100 == 0:
         plot_loss(model, skip_beg=batch_idx // 2, 
             legend=['Transformer Sequence Prediction'])
         plt.savefig(curr_path + '/results/' + name + '_loss.png')

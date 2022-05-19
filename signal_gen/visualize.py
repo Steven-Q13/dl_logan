@@ -178,8 +178,10 @@ def plot_funcs(x1, x2, y1, y2, ht=13, wd=6, xlabel1='', xlabel2='',
 
 
 def plot_loss(model, model2=None, model3=None, skip_beg=0, legend=['Loss']):
+    plt.figure(figsize=(10, 3))
     x = np.linspace(1, len(model.get_train_loss())-skip_beg-1, 
         num=len(model.get_train_loss())-skip_beg-1)
+    x += skip_beg
     plt.plot(x, model.get_train_loss()[skip_beg+1:])
     if model2:
         plt.plot(x, model2.get_train_loss()[skip_beg+1:])
@@ -191,6 +193,7 @@ def plot_loss(model, model2=None, model3=None, skip_beg=0, legend=['Loss']):
     plt.legend(legend)
 
 def plot_seq(y, y_p):
+    plt.figure(figsize=(10, 3))
     x = np.linspace(1,y[0,0,:].shape[0],num=y[0,0,:].shape[0])
     plt.plot(x, y[0,0,:].detach().cpu().numpy())
     plt.plot(x, y_p[0,0,:].detach().cpu().numpy())
@@ -198,4 +201,5 @@ def plot_seq(y, y_p):
     plt.ylabel('Magnitude')
     plt.title('Prediction v. Target Signal')
     plt.legend(['Target', 'Prediction'])
+
 

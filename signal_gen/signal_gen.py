@@ -45,6 +45,70 @@ def sinc_func(x, sig_pow, center, width):
     return sig_pow**2 * np.sinc(width*x) * np.cos(2*np.pi*center*x) / (2*width)
 
 ## FIX DEVICE
+class PeriodicTrain_Mask(torch.utils.data.IterableDataset):
+    EPSILON = 0.000001
+    def __init__(self, min_time, num_freqs, avg_freq_amp,
+            lowpass, highpass, num_samples, cache_size):
+        self.min_time = min_time
+        self.num_freqs = num_freqs
+        self.lowpass = lowpass
+        self.highpass = highpass
+        self.freq_amp = avg_freq_amp
+        self.num_samples = num_samples
+        self.cache_size = cache_size
+
+        self.fund_freq = (self.highpass - self.lowpass) / self.num_freqs
+        self.freqs = torch.linspace(self.lowpass, 
+            self.highpass-self.fund_freq, steps=self.num_freqs)[:,None]
+        self.max_time = min_time + 1/self.fund_freq
+        self.sample_rate = self.num_samples / (self.max_time - self.min_time)
+        if self.num_samples and round(highpass * 2.2) > self.sample_rate:
+            print(round(highpass * 2.2))
+            print(1/self.fund_freq)
+            raise ValueError('PeriodicTrain recieved too small num_samples.')
+        self.x = torch.linspace(self.min_time, 
+            self.max_time-1/self.sample_rate, self.num_samples)[None,:]
+        
+    def __iter__(self):
+        self.batch_rand_vals()
+        self.idx = 0
+        return self        
+
+    def batch_rand_vals(self):
+        self.coeff = torch.rand(
+            [1, self.num_freqs, self.cache_size], dtype=torch.float32)
+        self.coeff = (
+            ((self.coeff - 0.5) * self.freq_amp) + self.freq_amp)
+        # Adds randomness to nature of generated baseline signals
+        self.amp_filter = (torch.rand(
+            (1, self.num_freqs, self.cache_size), dtype=torch.float) 
+            < 0.75)
+        self.coeff *= self.amp_filter
+
+    # Needs to check free zeros
+    def __next__(self):
+        #sig[num_samples,1]
+        if(self.idx >= self.cache_size): 
+            self.batch_rand_vals()
+            self.idx = 0
+        sig = PeriodicTrain_Transformer.cos_func(
+            self.x, self.coeff[:,:,self.idx], self.freqs)
+        sign = torch.signbit(sig) * -2 + 1
+        mult = sig[0,0].repeat(sig.shape[1])[None,:]
+        #self.idx += 1
+        return (sign.detach(), mult.detach(), sig.detach())
+
+    def cos_func(x, coeff, freqs):
+        return torch.mm(coeff*2, torch.cos(2*PI*torch.mm(freqs,x)))
+
+    def get_fund_freq(self):
+        return self.fund_freq
+
+    def get_max_time(self):
+        return self.max_time
+
+
+## FIX DEVICE
 class PeriodicTrain_NBeats(torch.utils.data.IterableDataset):
     EPSILON = 0.000001
     def __init__(self, min_time, num_freqs, avg_freq_amp,
